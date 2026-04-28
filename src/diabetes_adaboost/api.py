@@ -35,6 +35,7 @@ if str(SRC_DIR) not in sys.path:
 ARTIFACTS_DIR = PROJECT_ROOT / "artifacts"
 MODEL_PATH = ARTIFACTS_DIR / "diabetes_best_model.joblib"
 METRICS_PATH = PROJECT_ROOT / "flutter_app" / "assets" / "metrics.json"
+CHARTS_DIR = PROJECT_ROOT / "flutter_app" / "assets" / "charts"
 
 
 # FastAPI uygulamasını oluşturuyoruz.
@@ -104,6 +105,38 @@ def _read_metrics_json() -> dict[str, Any]:
     if not METRICS_PATH.exists():
         return {}
     return json.loads(METRICS_PATH.read_text(encoding="utf-8"))
+
+
+def _humanize_chart_title(filename: str) -> str:
+    """Chart dosya adından okunabilir bir başlık üretir."""
+    stem = Path(filename).stem
+    parts = stem.replace("-", "_").split("_")
+    return " ".join(p.capitalize() for p in parts if p)
+
+
+def _list_chart_assets() -> list[dict[str, str]]:
+    """Flutter assets/charts klasöründeki tüm png grafikleri listeler."""
+    if not CHARTS_DIR.exists():
+        return []
+    assets: list[dict[str, str]] = []
+    for chart_path in sorted(CHARTS_DIR.glob("*.png")):
+        stem = chart_path.stem.lower()
+        if stem.startswith("eda_"):
+            category = "eda"
+        elif "roc" in stem or "pr_" in stem or "confusion" in stem or "threshold" in stem:
+            category = "performance"
+        elif "feature_importance" in stem or "model_comparison" in stem:
+            category = "model"
+        else:
+            category = "analysis"
+        assets.append(
+            {
+                "title": _humanize_chart_title(chart_path.name),
+                "asset_path": f"assets/charts/{chart_path.name}",
+                "category": category,
+            }
+        )
+    return assets
 
 
 def _bmi_level_text(bmi: float) -> str:
@@ -237,6 +270,9 @@ def metrics() -> dict[str, Any]:
     accuracy = best_metrics.get("test_accuracy", raw.get("accuracy", 0.0))
     f1_macro = best_metrics.get("test_f1_macro", raw.get("f1", 0.0))
     roc_auc = best_metrics.get("test_roc_auc", raw.get("roc_auc", 0.0))
+    balanced_accuracy = best_metrics.get("test_balanced_accuracy", 0.0)
+    precision_macro = best_metrics.get("test_precision_macro", 0.0)
+    recall_macro = best_metrics.get("test_recall_macro", 0.0)
     model_name = raw.get("best_model_name", type(bundle.classifier).__name__)
 
     # Metrics endpoint'inde hem skor hem de importance dönüyoruz.
@@ -244,8 +280,20 @@ def metrics() -> dict[str, Any]:
         "accuracy": float(accuracy),
         "f1": float(f1_macro),
         "roc_auc": float(roc_auc),
+        "balanced_accuracy": float(balanced_accuracy),
+        "precision_macro": float(precision_macro),
+        "recall_macro": float(recall_macro),
         "threshold": float(raw.get("decision_threshold", {}).get("threshold", bundle.decision_threshold)),
         "model_name": model_name,
         "feature_importance": _feature_importance_for_bundle(bundle)[:10],
+        "models": raw.get("models", []),
+        "preprocessing": raw.get("preprocessing", []),
+        "classification_report_test_best": raw.get("classification_report_test_best", ""),
+        "classification_report_test_best_dict": raw.get("classification_report_test_best_dict", {}),
+        "feature_importance_by_model": raw.get("feature_importance", {}),
+        "cv_train_roc_auc_mean": float(raw.get("cv_train_roc_auc_mean", 0.0)),
+        "cv_train_roc_auc_std": float(raw.get("cv_train_roc_auc_std", 0.0)),
+        "generated_at": raw.get("generated_at", ""),
+        "charts": _list_chart_assets(),
     }
 
