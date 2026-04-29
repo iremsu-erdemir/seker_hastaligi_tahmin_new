@@ -25,6 +25,7 @@ class DiabetesModelBundle:
     medians: dict[str, float]
     scaler: Any
     classifier: Any
+    calibrated_classifier: Any | None = None
     zero_to_na_cols: list[str] | None = None
     impute_cols: list[str] | None = None
     winsor_bounds: dict[str, tuple[float, float]] | None = None
@@ -71,4 +72,5 @@ class DiabetesModelBundle:
 
     def predict_proba(self, df: pd.DataFrame) -> np.ndarray:
         Xs = self.preprocess(df)
-        return self.classifier.predict_proba(Xs)
+        model = self.calibrated_classifier if self.calibrated_classifier is not None else self.classifier
+        return model.predict_proba(Xs)

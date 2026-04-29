@@ -11,6 +11,7 @@ class DiabetesApiService {
       : _baseUrl = baseUrl ?? _defaultBaseUrl();
 
   final String _baseUrl;
+  String get baseUrl => _baseUrl;
 
   static String _defaultBaseUrl() {
     const fromEnv = String.fromEnvironment('API_BASE_URL');
@@ -60,6 +61,26 @@ class DiabetesApiService {
     }
     final decoded = jsonDecode(response.body) as Map<String, dynamic>;
     return MetricsResult.fromJson(decoded);
+  }
+
+  // /feedback endpoint'ine sonradan gelen gerçek etiketi gönderir.
+  Future<ModelHealth> submitFeedback({
+    required String inferenceId,
+    required int outcome,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/feedback');
+    final response = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'inference_id': inferenceId, 'Outcome': outcome}),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Feedback servisine ulaşılamadı: ${response.statusCode}');
+    }
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    final modelHealth =
+        Map<String, dynamic>.from(decoded['model_health'] as Map? ?? {});
+    return ModelHealth.fromJson(modelHealth);
   }
 }
 

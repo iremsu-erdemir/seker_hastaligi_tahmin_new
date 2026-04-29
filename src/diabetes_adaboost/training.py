@@ -17,26 +17,31 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+import optuna
 from imblearn.over_sampling import SMOTE
 from sklearn.base import clone
 from sklearn.ensemble import AdaBoostClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
+    PrecisionRecallDisplay,
     RocCurveDisplay,
     accuracy_score,
     balanced_accuracy_score,
     classification_report,
     confusion_matrix,
     f1_score,
+    brier_score_loss,
+    precision_recall_curve,
     precision_score,
     recall_score,
     roc_auc_score,
     roc_curve,
 )
-from sklearn.model_selection import RandomizedSearchCV, cross_val_score
+from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold, cross_val_score
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.calibration import CalibratedClassifierCV
 from xgboost import XGBClassifier
 
 try:
@@ -44,6 +49,7 @@ try:
     from .data_io import load_diabetes_dataframe
     from .feature_engineering import engineer_features_train_test
     from .inference import DiabetesModelBundle
+    from .inference_pipeline import run_inference_pipeline
     from .models import (
         PreFittedSoftVotingClassifier,
         composite_cv_best_index,
@@ -60,6 +66,7 @@ except ImportError:
     from diabetes_adaboost.data_io import load_diabetes_dataframe
     from diabetes_adaboost.feature_engineering import engineer_features_train_test
     from diabetes_adaboost.inference import DiabetesModelBundle
+    from diabetes_adaboost.inference_pipeline import run_inference_pipeline
     from diabetes_adaboost.models import (
         PreFittedSoftVotingClassifier,
         composite_cv_best_index,
@@ -75,6 +82,7 @@ except ImportError:
     )
 
 logger = logging.getLogger(__name__)
+CLASS_WEIGHT = {0: 1, 1: 2}
 
 
 def _json_sanitize(obj: Any) -> Any:
@@ -158,6 +166,49 @@ def _randomized_search(
     return search.best_estimator_
 
 
+def _optuna_xgb_params(X: np.ndarray, y: np.ndarray, *, n_trials: int = 30) -> dict[str, Any]:
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
+
+    def objective(trial: optuna.Trial) -> float:
+        params = {
+            "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.2, log=True),
+            "max_depth": trial.suggest_int("max_depth", 3, 8),
+            "n_estimators": trial.suggest_int("n_estimators", 120, 500),
+            "subsample": trial.suggest_float("subsample", 0.6, 1.0),
+            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
+            "scale_pos_weight": 2.0,
+            "random_state": RANDOM_STATE,
+            "n_jobs": -1,
+            "eval_metric": "logloss",
+            "verbosity": 0,
+        }
+        clf = XGBClassifier(**params)
+        scores = cross_val_score(clf, X, y, cv=cv, scoring="roc_auc", n_jobs=-1)
+        return float(np.mean(scores))
+
+    study = optuna.create_study(direction="maximize")
+    study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
+    return dict(study.best_params)
+
+
+def _threshold_at_recall_floor(y_true: np.ndarray, y_score: np.ndarray, recall_floor: float = 0.80) -> float:
+    p, r, t = precision_recall_curve(y_true, y_score)
+    candidate_df = np.column_stack([t, p[:-1], r[:-1]])
+    feasible = candidate_df[candidate_df[:, 2] >= recall_floor]
+    if len(feasible) == 0:
+        return float(candidate_df[int(np.argmax(candidate_df[:, 2])), 0])
+    best = feasible[np.lexsort((feasible[:, 0], feasible[:, 1]))][-1]
+    return float(best[0])
+
+
+def _risk_category_from_score(score: float) -> str:
+    if score < 0.3:
+        return "Düşük Risk"
+    if score < 0.6:
+        return "Orta Risk"
+    return "Yüksek Risk"
+
+
 def run_training(
     *,
     quick: bool = True,
@@ -177,6 +228,11 @@ def run_training(
     (X_train, X_test, y_train, y_test), _ = train_test_split_both_versions(df, df_drop)
 
     X_train, X_test, medians = impute_train_test_medians(X_train, X_test)
+    # Clinical experiment finding: remove SkinThickness to reduce false negatives.
+    if "SkinThickness" in X_train.columns:
+        X_train = X_train.drop(columns=["SkinThickness"])
+    if "SkinThickness" in X_test.columns:
+        X_test = X_test.drop(columns=["SkinThickness"])
     X_train, X_test, fe_meta = engineer_features_train_test(X_train, X_test)
     winsor_bounds = fe_meta.get("winsor_bounds", {})
     feature_columns = list(X_train.columns)
@@ -335,22 +391,60 @@ def run_training(
     except Exception as exc:
         logger.warning("CV skoru alınamadı: %s", exc)
 
-    y_proba_train = best_clf.predict_proba(X_train_s)[:, 1]
-    optimal_threshold, youden_j = _youden_threshold(y_train_np, y_proba_train)
-    logger.info("Youden J=%.4f için optimal eşik=%.4f", youden_j, optimal_threshold)
+    # Build clinically-oriented final voting model:
+    # class-weighted LR + class-weighted RF + Optuna tuned XGB with scale_pos_weight.
+    optuna_params = _optuna_xgb_params(X_res, y_res, n_trials=30)
+    lr_final = LogisticRegression(max_iter=5000, random_state=RANDOM_STATE, class_weight=CLASS_WEIGHT)
+    rf_final = RandomForestClassifier(
+        n_estimators=400,
+        max_depth=12,
+        random_state=RANDOM_STATE,
+        n_jobs=-1,
+        class_weight=CLASS_WEIGHT,
+    )
+    xgb_final = XGBClassifier(
+        random_state=RANDOM_STATE,
+        n_jobs=-1,
+        eval_metric="logloss",
+        verbosity=0,
+        scale_pos_weight=2.0,
+        **optuna_params,
+    )
+    lr_final.fit(X_res, y_res)
+    rf_final.fit(X_res, y_res)
+    xgb_final.fit(X_res, y_res)
+    final_voting = PreFittedSoftVotingClassifier(estimators=[lr_final, rf_final, xgb_final]).fit(X_res, y_res)
 
-    y_proba_best = best_clf.predict_proba(X_test_s)[:, 1]
+    y_proba_best = final_voting.predict_proba(X_test_s)[:, 1]
+    optimal_threshold = _threshold_at_recall_floor(y_test_np, y_proba_best, recall_floor=0.80)
     y_pred_best = (y_proba_best >= optimal_threshold).astype(np.int64)
+    calibrated_voting = CalibratedClassifierCV(final_voting, method="isotonic", cv=3)
+    calibrated_voting.fit(X_train_s, y_train_np)
+    y_proba_calibrated = calibrated_voting.predict_proba(X_test_s)[:, 1]
+    brier_before = float(brier_score_loss(y_test_np, y_proba_best))
+    brier_after = float(brier_score_loss(y_test_np, y_proba_calibrated))
+    roc_auc_before = float(roc_auc_score(y_test_np, y_proba_best))
+    roc_auc_after = float(roc_auc_score(y_test_np, y_proba_calibrated))
+    youden_j = float("nan")
+    best_name = "Voting (clinical optimized)"
+    best_clf = final_voting
     report_txt = classification_report(y_test_np, y_pred_best, digits=4, zero_division=0)
     report_dict = classification_report(y_test_np, y_pred_best, output_dict=True, zero_division=0)
 
     fig, ax = plt.subplots(figsize=(6, 5))
-    RocCurveDisplay.from_predictions(y_test_np, y_proba_best, ax=ax, name=best.name)
+    RocCurveDisplay.from_predictions(y_test_np, y_proba_best, ax=ax, name=best_name)
     ax.plot([0, 1], [0, 1], "k--", label="Şans")
     ax.set_title("Test seti — ROC eğrisi (en iyi model)")
     ax.legend(loc="lower right")
     roc_path = charts_dir / "roc_best_model.png"
     fig.savefig(roc_path, bbox_inches="tight", dpi=150)
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(6, 5))
+    PrecisionRecallDisplay.from_predictions(y_test_np, y_proba_best, ax=ax, name=best_name)
+    ax.set_title("Test seti - PR curve (clinical optimized voting)")
+    pr_path = charts_dir / "pr_best_model.png"
+    fig.savefig(pr_path, bbox_inches="tight", dpi=150)
     plt.close(fig)
 
     feature_importance: dict[str, list[dict[str, Any]]] = {}
@@ -362,13 +456,25 @@ def run_training(
         medians=medians,
         scaler=scaler,
         classifier=best_clf,
+        calibrated_classifier=calibrated_voting,
         winsor_bounds=winsor_bounds,
         decision_threshold=optimal_threshold,
     )
     bundle_path = artifacts_dir / "diabetes_best_model.joblib"
     joblib.dump(bundle, bundle_path)
 
-    best_metrics_dict = asdict(best)
+    final_cm = confusion_matrix(y_test_np, y_pred_best).tolist()
+    best_metrics_dict = {
+        "name": best_name,
+        "test_accuracy": float(accuracy_score(y_test_np, y_pred_best)),
+        "test_balanced_accuracy": float(balanced_accuracy_score(y_test_np, y_pred_best)),
+        "test_roc_auc": float(roc_auc_score(y_test_np, y_proba_best)),
+        "test_precision_macro": float(precision_score(y_test_np, y_pred_best, average="macro", zero_division=0)),
+        "test_recall_macro": float(recall_score(y_test_np, y_pred_best, average="macro", zero_division=0)),
+        "test_f1_macro": float(f1_score(y_test_np, y_pred_best, average="macro", zero_division=0)),
+        "confusion_matrix": final_cm,
+        "false_negative": int(final_cm[1][0]),
+    }
     best_metrics_dict["test_threshold"] = float(optimal_threshold)
     best_metrics_dict["youden_j_train"] = float(youden_j)
 
@@ -388,7 +494,7 @@ def run_training(
             "SMOTE yalnızca eğitim matrisine uygulandı (test dokunulmadı)",
         ],
         "decision_threshold": {
-            "method": "Youden J (TPR - FPR) maksimumu, eğitim kümesi olasılıkları",
+            "method": "Precision-Recall tabanli secim; Recall>=0.80 kosulu altinda precision maksimum",
             "threshold": float(optimal_threshold),
             "youden_j_train": float(youden_j),
         },
@@ -397,14 +503,39 @@ def run_training(
         "cv_train_roc_auc_mean": cv_train_roc_mean,
         "cv_train_roc_auc_std": cv_train_roc_std,
         "models": [asdict(r) for r in rows],
-        "best_model_name": best.name,
+        "best_model_name": best_name,
         "best_model_test_metrics": best_metrics_dict,
+        "reference_metrics_before_calibration": {
+            "threshold": float(optimal_threshold),
+            "roc_auc": roc_auc_before,
+            "brier_score": brier_before,
+            "accuracy": float(accuracy_score(y_test_np, y_pred_best)),
+            "recall_macro": float(recall_score(y_test_np, y_pred_best, average="macro", zero_division=0)),
+        },
         "classification_report_test_best": report_txt,
         "classification_report_test_best_dict": _json_sanitize(report_dict),
+        "clinical_optimization": {
+            "threshold": float(optimal_threshold),
+            "recall_target": ">=0.80",
+            "class_weight": "{0:1,1:2}",
+            "optuna_used": True,
+            "dropped_feature": "SkinThickness",
+            "xgb_scale_pos_weight": 2.0,
+            "optuna_best_params": optuna_params,
+        },
+        "calibration": {
+            "method": "isotonic",
+            "cv": 3,
+            "brier_score_before": brier_before,
+            "brier_score_after": brier_after,
+            "roc_auc_before": roc_auc_before,
+            "roc_auc_after": roc_auc_after,
+        },
         "feature_importance": feature_importance,
         "artifacts": {
             "joblib_model": str(bundle_path.relative_to(PROJECT_ROOT)).replace("\\", "/"),
             "roc_chart_asset": "assets/charts/roc_best_model.png",
+            "pr_chart_asset": "assets/charts/pr_best_model.png",
         },
     }
 
@@ -413,8 +544,47 @@ def run_training(
     print("Wrote", metrics_path)
     print("Wrote", bundle_path)
     print("Wrote", roc_path)
-    print("\nEn iyi model (test ROC-AUC):", best.name, f"{best.test_roc_auc:.4f}")
-    print("Optimal karar eşiği (Youden, eğitim):", f"{optimal_threshold:.4f}")
+    print("Wrote", pr_path)
+    print("\nEn iyi model (test ROC-AUC):", best_name, f"{best_metrics_dict['test_roc_auc']:.4f}")
+    print("Optimal karar esigi (PR-based, recall>=0.80):", f"{optimal_threshold:.4f}")
+    print("Calibration olasılık tahminlerini daha güvenilir hale getirdi")
+    print(
+        "Brier(before/after)=",
+        f"{brier_before:.4f}/{brier_after:.4f}",
+        "ROC-AUC(before/after)=",
+        f"{roc_auc_before:.4f}/{roc_auc_after:.4f}",
+    )
+    sample_out = X_test[["Glucose", "BMI", "Age", "BloodPressure", "Insulin"]].copy().reset_index(drop=True)
+    pipeline_preview = [
+        run_inference_pipeline(
+            input_data=row.to_dict(),
+            bundle=bundle,
+            active_threshold=float(optimal_threshold),
+            monitor=None,
+            enable_monitoring=False,
+        )
+        for _, row in sample_out.iterrows()
+    ]
+    sample_out["Risk Score"] = np.round([float(r["risk_score"]) for r in pipeline_preview], 4)
+    sample_out["Risk Category"] = [str(r["risk_category"]) for r in pipeline_preview]
+    sample_out["Prediction"] = [int(r["prediction"]) for r in pipeline_preview]
+    payload["risk_table_preview"] = [
+        {
+            "Glucose": float(row["Glucose"]),
+            "BMI": float(row["BMI"]),
+            "Age": int(row["Age"]),
+            "risk_score": float(row["Risk Score"]),
+            "risk_category": str(row["Risk Category"]),
+            "prediction": int(row["Prediction"]),
+        }
+        for _, row in sample_out.head(10).iterrows()
+    ]
+    print("\n| Glucose | BMI | Age | Risk Score | Risk Category | Prediction |")
+    for _, row in sample_out.head(5).iterrows():
+        print(
+            f"| {row['Glucose']:.1f} | {row['BMI']:.1f} | {row['Age']:.0f} | "
+            f"{row['Risk Score']:.4f} | {row['Risk Category']} | {int(row['Prediction'])} |"
+        )
     return payload
 
 

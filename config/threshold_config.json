@@ -1,0 +1,8 @@
+{
+  "default_threshold": 0.4228,
+  "override_enabled": false,
+  "active_threshold": 0.4228,
+  "override_threshold": null,
+  "min_threshold": 0.35,
+  "max_threshold": 0.5
+}

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-28T21:31:36.950711+00:00",
+  "generated_at": "2026-04-29T14:22:03.728840+00:00",
   "dataset_csv": "data/diabetes.csv",
   "problem": "İkili sınıflandırma: Outcome (diyabet var/yok)",
   "train_n": 614,
@@ -17,9 +17,9 @@
     "SMOTE yalnızca eğitim matrisine uygulandı (test dokunulmadı)"
   ],
   "decision_threshold": {
-    "method": "Youden J (TPR - FPR) maksimumu, eğitim kümesi olasılıkları",
-    "threshold": 0.5557271514669307,
-    "youden_j_train": 0.9839354660783233
+    "method": "Precision-Recall tabanli secim; Recall>=0.80 kosulu altinda precision maksimum",
+    "threshold": 0.42974986339494076,
+    "youden_j_train": NaN
   },
   "feature_engineering_meta": {
     "winsor_columns": [
@@ -45,59 +45,21 @@
     "mode": "quick",
     "smote": "imblearn.over_sampling.SMOTE"
   },
-  "cv_train_roc_auc_mean": 0.9048435822535141,
-  "cv_train_roc_auc_std": 0.047292990225529255,
+  "cv_train_roc_auc_mean": 0.8636456694879285,
+  "cv_train_roc_auc_std": 0.03152303006981191,
   "models": [
     {
       "name": "Lojistik Regresyon",
-      "test_accuracy": 0.6883116883116883,
-      "test_balanced_accuracy": 0.6841787439613527,
-      "test_roc_auc": 0.7920692431561998,
-      "test_precision_macro": 0.6588541666666667,
-      "test_recall_macro": 0.6841787439613527,
-      "test_f1_macro": 0.6606060606060606,
+      "test_accuracy": 0.6948051948051948,
+      "test_balanced_accuracy": 0.6950483091787439,
+      "test_roc_auc": 0.7910628019323671,
+      "test_precision_macro": 0.6675021607605878,
+      "test_recall_macro": 0.6950483091787439,
+      "test_f1_macro": 0.6689989481867654,
       "confusion_matrix": [
         [
           75,
           33
-        ],
-        [
-          15,
-          31
-        ]
-      ]
-    },
-    {
-      "name": "Rastgele Orman",
-      "test_accuracy": 0.7077922077922078,
-      "test_balanced_accuracy": 0.6855877616747181,
-      "test_roc_auc": 0.7789855072463768,
-      "test_precision_macro": 0.6667570989328993,
-      "test_recall_macro": 0.6855877616747181,
-      "test_f1_macro": 0.6717973004972768,
-      "confusion_matrix": [
-        [
-          80,
-          28
-        ],
-        [
-          17,
-          29
-        ]
-      ]
-    },
-    {
-      "name": "XGBoost",
-      "test_accuracy": 0.7272727272727273,
-      "test_balanced_accuracy": 0.7181964573268921,
-      "test_roc_auc": 0.7592592592592593,
-      "test_precision_macro": 0.6921985815602837,
-      "test_recall_macro": 0.7181964573268921,
-      "test_f1_macro": 0.6979263964132263,
-      "confusion_matrix": [
-        [
-          80,
-          28
         ],
         [
           14,
@@ -106,21 +68,59 @@
       ]
     },
     {
-      "name": "AdaBoost",
-      "test_accuracy": 0.7207792207792207,
-      "test_balanced_accuracy": 0.6948470209339774,
-      "test_roc_auc": 0.7413446054750403,
-      "test_precision_macro": 0.6777777777777778,
-      "test_recall_macro": 0.6948470209339774,
-      "test_f1_macro": 0.6832639785717702,
+      "name": "Rastgele Orman",
+      "test_accuracy": 0.7402597402597403,
+      "test_balanced_accuracy": 0.7274557165861514,
+      "test_roc_auc": 0.7864331723027375,
+      "test_precision_macro": 0.7029454022988506,
+      "test_recall_macro": 0.7274557165861514,
+      "test_f1_macro": 0.7096530920060332,
       "confusion_matrix": [
         [
           82,
           26
         ],
         [
-          17,
-          29
+          14,
+          32
+        ]
+      ]
+    },
+    {
+      "name": "XGBoost",
+      "test_accuracy": 0.7337662337662337,
+      "test_balanced_accuracy": 0.7290660225442833,
+      "test_roc_auc": 0.7701288244766505,
+      "test_precision_macro": 0.700599330160409,
+      "test_recall_macro": 0.7290660225442833,
+      "test_f1_macro": 0.7064211652020272,
+      "confusion_matrix": [
+        [
+          80,
+          28
+        ],
+        [
+          13,
+          33
+        ]
+      ]
+    },
+    {
+      "name": "AdaBoost",
+      "test_accuracy": 0.7012987012987013,
+      "test_balanced_accuracy": 0.6934380032206119,
+      "test_roc_auc": 0.7437600644122382,
+      "test_precision_macro": 0.6684782608695652,
+      "test_recall_macro": 0.6934380032206119,
+      "test_f1_macro": 0.672037037037037,
+      "confusion_matrix": [
+        [
+          77,
+          31
+        ],
+        [
+          15,
+          31
         ]
       ]
     },
@@ -128,7 +128,7 @@
       "name": "KNN (k=15)",
       "test_accuracy": 0.7077922077922078,
       "test_balanced_accuracy": 0.7043075684380031,
-      "test_roc_auc": 0.7701288244766507,
+      "test_roc_auc": 0.8045491143317229,
       "test_precision_macro": 0.6770451770451771,
       "test_recall_macro": 0.7043075684380031,
       "test_f1_macro": 0.6805126550182103,
@@ -146,288 +146,300 @@
     {
       "name": "Voting (hibrit LR+RF+XGB)",
       "test_accuracy": 0.7467532467532467,
-      "test_balanced_accuracy": 0.732085346215781,
-      "test_roc_auc": 0.7940821256038647,
-      "test_precision_macro": 0.7085368059323567,
-      "test_recall_macro": 0.732085346215781,
-      "test_f1_macro": 0.7155576604309732,
+      "test_balanced_accuracy": 0.7383252818035426,
+      "test_roc_auc": 0.8031400966183575,
+      "test_precision_macro": 0.7112399643175735,
+      "test_recall_macro": 0.7383252818035426,
+      "test_f1_macro": 0.7182266009852216,
       "confusion_matrix": [
         [
-          83,
-          25
+          82,
+          26
         ],
         [
-          14,
-          32
+          13,
+          33
         ]
       ]
     }
   ],
-  "best_model_name": "Voting (hibrit LR+RF+XGB)",
+  "best_model_name": "Voting (clinical optimized)",
   "best_model_test_metrics": {
-    "name": "Voting (hibrit LR+RF+XGB)",
-    "test_accuracy": 0.7467532467532467,
-    "test_balanced_accuracy": 0.732085346215781,
-    "test_roc_auc": 0.7940821256038647,
-    "test_precision_macro": 0.7085368059323567,
-    "test_recall_macro": 0.732085346215781,
-    "test_f1_macro": 0.7155576604309732,
+    "name": "Voting (clinical optimized)",
+    "test_accuracy": 0.7337662337662337,
+    "test_balanced_accuracy": 0.7602657004830917,
+    "test_roc_auc": 0.8023349436392915,
+    "test_precision_macro": 0.7194128627184795,
+    "test_recall_macro": 0.7602657004830917,
+    "test_f1_macro": 0.7174564818543876,
     "confusion_matrix": [
       [
-        83,
-        25
+        75,
+        33
       ],
       [
-        14,
-        32
+        8,
+        38
       ]
     ],
-    "test_threshold": 0.5557271514669307,
-    "youden_j_train": 0.9839354660783233
+    "false_negative": 8,
+    "test_threshold": 0.42974986339494076,
+    "youden_j_train": NaN
   },
-  "classification_report_test_best": "              precision    recall  f1-score   support\n\n           0     0.8300    0.7685    0.7981       108\n           1     0.5370    0.6304    0.5800        46\n\n    accuracy                         0.7273       154\n   macro avg     0.6835    0.6995    0.6890       154\nweighted avg     0.7425    0.7273    0.7329       154\n",
+  "reference_metrics_before_calibration": {
+    "threshold": 0.42974986339494076,
+    "roc_auc": 0.8023349436392915,
+    "brier_score": 0.19783815452251216,
+    "accuracy": 0.7337662337662337,
+    "recall_macro": 0.7602657004830917
+  },
+  "classification_report_test_best": "              precision    recall  f1-score   support\n\n           0     0.9036    0.6944    0.7853       108\n           1     0.5352    0.8261    0.6496        46\n\n    accuracy                         0.7338       154\n   macro avg     0.7194    0.7603    0.7175       154\nweighted avg     0.7936    0.7338    0.7448       154\n",
   "classification_report_test_best_dict": {
     "0": {
-      "precision": 0.83,
-      "recall": 0.7685185185185185,
-      "f1-score": 0.7980769230769231,
+      "precision": 0.9036144578313253,
+      "recall": 0.6944444444444444,
+      "f1-score": 0.7853403141361257,
       "support": 108.0
     },
     "1": {
-      "precision": 0.5370370370370371,
-      "recall": 0.6304347826086957,
-      "f1-score": 0.58,
+      "precision": 0.5352112676056338,
+      "recall": 0.8260869565217391,
+      "f1-score": 0.6495726495726496,
       "support": 46.0
     },
-    "accuracy": 0.7272727272727273,
+    "accuracy": 0.7337662337662337,
     "macro avg": {
-      "precision": 0.6835185185185185,
-      "recall": 0.6994766505636071,
-      "f1-score": 0.6890384615384615,
+      "precision": 0.7194128627184795,
+      "recall": 0.7602657004830917,
+      "f1-score": 0.7174564818543876,
       "support": 154.0
     },
     "weighted avg": {
-      "precision": 0.7424915824915825,
-      "recall": 0.7272727272727273,
-      "f1-score": 0.7329370629370628,
+      "precision": 0.7935719464652097,
+      "recall": 0.7337662337662337,
+      "f1-score": 0.7447863364093732,
       "support": 154.0
     }
+  },
+  "clinical_optimization": {
+    "threshold": 0.42974986339494076,
+    "recall_target": ">=0.80",
+    "class_weight": "{0:1,1:2}",
+    "optuna_used": true,
+    "dropped_feature": "SkinThickness",
+    "xgb_scale_pos_weight": 2.0,
+    "optuna_best_params": {
+      "learning_rate": 0.046418545139490563,
+      "max_depth": 5,
+      "n_estimators": 446,
+      "subsample": 0.8119094259533901,
+      "colsample_bytree": 0.6224399994279857
+    }
+  },
+  "calibration": {
+    "method": "isotonic",
+    "cv": 3,
+    "brier_score_before": 0.19783815452251216,
+    "brier_score_after": 0.17591086240205905,
+    "roc_auc_before": 0.8023349436392915,
+    "roc_auc_after": 0.7960950080515298
   },
   "feature_importance": {
     "Lojistik Regresyon": [
       {
         "feature": "Glucose",
-        "importance": 0.32106229763917626
+        "importance": 0.32563054713761697
       },
       {
         "feature": "BMI_Category",
-        "importance": 0.16338920655958855
+        "importance": 0.15526485286784614
       },
       {
         "feature": "Age",
-        "importance": 0.1454344295888137
+        "importance": 0.14547300416660472
       },
       {
         "feature": "Glucose_Age_Interaction",
-        "importance": 0.1065229738832131
+        "importance": 0.11716669068273905
       },
       {
         "feature": "Pregnancies",
-        "importance": 0.08779790957894693
+        "importance": 0.08918054356201226
       },
       {
         "feature": "DiabetesPedigreeFunction",
-        "importance": 0.07603809245031247
+        "importance": 0.07313436531421112
       },
       {
         "feature": "BMI",
-        "importance": 0.0451985262285648
+        "importance": 0.04637188927913748
       },
       {
         "feature": "BloodPressure",
-        "importance": 0.03133933068811972
+        "importance": 0.024971289989132464
       },
       {
         "feature": "Insulin",
-        "importance": 0.01946566781834306
-      },
-      {
-        "feature": "SkinThickness",
-        "importance": 0.0037515655649212887
+        "importance": 0.022806817000699933
       }
     ],
     "Rastgele Orman": [
       {
         "feature": "Glucose_Age_Interaction",
-        "importance": 0.21407587385233603
+        "importance": 0.23621103671317925
       },
       {
         "feature": "Glucose",
-        "importance": 0.19024592914115399
+        "importance": 0.19563996433505118
       },
       {
         "feature": "BMI",
-        "importance": 0.1185465363395177
+        "importance": 0.12910613961862732
       },
       {
         "feature": "Age",
-        "importance": 0.09493252268549993
+        "importance": 0.09867918063660311
       },
       {
         "feature": "DiabetesPedigreeFunction",
-        "importance": 0.07984837227595029
+        "importance": 0.09081352398167102
       },
       {
         "feature": "Insulin",
-        "importance": 0.06976506115509569
+        "importance": 0.07640343942946105
       },
       {
         "feature": "Pregnancies",
-        "importance": 0.062308868925075665
-      },
-      {
-        "feature": "SkinThickness",
-        "importance": 0.05997682475980021
+        "importance": 0.06397400110943542
       },
       {
         "feature": "BloodPressure",
-        "importance": 0.058859099783569874
+        "importance": 0.06387584388016711
       },
       {
         "feature": "BMI_Category",
-        "importance": 0.051440911082000704
+        "importance": 0.045296870295804446
       }
     ],
     "XGBoost": [
       {
         "feature": "BMI_Category",
-        "importance": 0.3300224060180184
+        "importance": 0.2799777184419314
       },
       {
         "feature": "Glucose_Age_Interaction",
-        "importance": 0.1995501853776992
+        "importance": 0.23538733317884059
       },
       {
         "feature": "Glucose",
-        "importance": 0.08177802254754923
+        "importance": 0.09330512896085591
       },
       {
         "feature": "BMI",
-        "importance": 0.06563067069478311
+        "importance": 0.08275882432173721
       },
       {
         "feature": "Insulin",
-        "importance": 0.0646987074223138
-      },
-      {
-        "feature": "SkinThickness",
-        "importance": 0.05907448051081148
+        "importance": 0.07523279889335927
       },
       {
         "feature": "Pregnancies",
-        "importance": 0.05293390231576363
-      },
-      {
-        "feature": "Age",
-        "importance": 0.0526997603830084
+        "importance": 0.05931620871218249
       },
       {
         "feature": "DiabetesPedigreeFunction",
-        "importance": 0.046930433422489086
+        "importance": 0.05858335095364659
+      },
+      {
+        "feature": "Age",
+        "importance": 0.05853417339476779
       },
       {
         "feature": "BloodPressure",
-        "importance": 0.04668143130756367
+        "importance": 0.05690446314267877
       }
     ],
     "AdaBoost": [
       {
         "feature": "DiabetesPedigreeFunction",
-        "importance": 0.14732773018447026
-      },
-      {
-        "feature": "Glucose_Age_Interaction",
-        "importance": 0.1441363939036276
+        "importance": 0.17783145925786065
       },
       {
         "feature": "BMI",
-        "importance": 0.13569101539377007
+        "importance": 0.15999583614375387
+      },
+      {
+        "feature": "Glucose_Age_Interaction",
+        "importance": 0.15454938976750826
       },
       {
         "feature": "Glucose",
-        "importance": 0.11820099062019732
-      },
-      {
-        "feature": "BloodPressure",
-        "importance": 0.10881681501076476
-      },
-      {
-        "feature": "Insulin",
-        "importance": 0.08784675730778085
+        "importance": 0.12945260555679652
       },
       {
         "feature": "Pregnancies",
-        "importance": 0.08326899971514096
+        "importance": 0.1054197245033846
       },
       {
-        "feature": "SkinThickness",
-        "importance": 0.08102901332400758
+        "feature": "BloodPressure",
+        "importance": 0.10331624686130861
       },
       {
         "feature": "Age",
-        "importance": 0.07641341791664671
+        "importance": 0.09278061403981698
+      },
+      {
+        "feature": "Insulin",
+        "importance": 0.07031913788808747
       },
       {
         "feature": "BMI_Category",
-        "importance": 0.017268866623593934
+        "importance": 0.0063349859814830585
       }
     ],
     "KNN (k=15)": [],
     "Voting (hibrit LR+RF+XGB)": [
       {
         "feature": "Glucose",
-        "importance": 0.19769541644262648
-      },
-      {
-        "feature": "BMI_Category",
-        "importance": 0.18161750788653588
+        "importance": 0.20485854681117469
       },
       {
         "feature": "Glucose_Age_Interaction",
-        "importance": 0.17338301103774945
+        "importance": 0.19625502019158628
+      },
+      {
+        "feature": "BMI_Category",
+        "importance": 0.16017981386852734
       },
       {
         "feature": "Age",
-        "importance": 0.09768890421910735
+        "importance": 0.10089545273265853
       },
       {
         "feature": "BMI",
-        "importance": 0.07645857775428855
-      },
-      {
-        "feature": "Pregnancies",
-        "importance": 0.06768022693992874
+        "importance": 0.08607895107316733
       },
       {
         "feature": "DiabetesPedigreeFunction",
-        "importance": 0.06760563271625063
+        "importance": 0.07417708008317624
+      },
+      {
+        "feature": "Pregnancies",
+        "importance": 0.07082358446121005
       },
       {
         "feature": "Insulin",
-        "importance": 0.05130981213191752
+        "importance": 0.05814768510784008
       },
       {
         "feature": "BloodPressure",
-        "importance": 0.04562662059308442
-      },
-      {
-        "feature": "SkinThickness",
-        "importance": 0.040934290278511
+        "importance": 0.04858386567065945
       }
     ]
   },
   "artifacts": {
     "joblib_model": "artifacts/diabetes_best_model.joblib",
-    "roc_chart_asset": "assets/charts/roc_best_model.png"
+    "roc_chart_asset": "assets/charts/roc_best_model.png",
+    "pr_chart_asset": "assets/charts/pr_best_model.png"
   }
 }
